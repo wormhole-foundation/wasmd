@@ -71,6 +71,11 @@ type WasmVMResponseHandler interface {
 	) ([]byte, error)
 }
 
+// WormholeKeeper is an extension point to handle wormhole specific logic.
+type WormholeKeeper interface {
+	HasWasmInstantiateAllowlist(ctx sdk.Context, contract string, codeId uint64) bool
+}
+
 // list of account types that are accepted for wasm contracts. Chains importing wasmd
 // can overwrite this list with the WithAcceptedAccountTypesOnContractInstantiation option.
 var defaultAcceptedAccountTypes = map[reflect.Type]struct{}{
@@ -101,6 +106,23 @@ type Keeper struct {
 	// the address capable of executing a MsgUpdateParams message. Typically, this
 	// should be the x/gov module account.
 	authority string
+
+	// wormholeKeeper is an extension point to handle wormhole specific logic.
+	wormholeKeeper WormholeKeeper
+}
+
+// SetWormholeKeeper sets the wormhole keeper for the wasm keeper.
+func (k *Keeper) SetWormholeKeeper(wormholeKeeper WormholeKeeper) {
+	k.wormholeKeeper = wormholeKeeper
+}
+
+// hasWasmInstantiateAllowlist checks if the given code ID is allowed to be instantiated by the caller.
+// If wormhole keeper is not set, it returns false.
+func (k *Keeper) HasWasmInstantiateAllowlist(ctx sdk.Context, codeId uint64, caller sdk.AccAddress) bool {
+	if k.wormholeKeeper == nil {
+		return false
+	}
+	return k.wormholeKeeper.HasWasmInstantiateAllowlist(ctx, caller.String(), codeId)
 }
 
 func (k Keeper) getUploadAccessConfig(ctx sdk.Context) types.AccessConfig {
